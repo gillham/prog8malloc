@@ -1,0 +1,4 @@
+# build artifacts
+build/
+# libdump output should be ignored anywhere we see it.
+prog8lib-*/

@@ -1,0 +1,175 @@
+libmem test suite
+arena=$1f1b size=1024 hdr=7 min_resize=8
+
+- pool init
+  ok   mempool is the arena start
+  ok   mempool_size is end-start
+  ok   list head is the arena start
+  ok   initial block is free
+  ok   initial block spans the pool
+  ok   initial block has no next
+  ok   initial block has no prev
+  ok   heap after init
+- platform pool via init()
+  ok   init() marks the pool started
+  ok   init() picked a pool address
+  ok   init() pool is big enough to be useful
+  ok   list head is the pool start
+  ok   initial block spans the pool
+  ok   initial block is free
+  ok   malloc(16) works on the platform pool
+  ok   the platform allocation is sane
+  ok   heap after platform init
+- no writes through a NULL block pointer
+  ok   tail split did not write to NULL.prev
+  ok   tail split produced the exact size
+  ok   second tail split did not write to NULL.prev
+  ok   second tail split produced the exact size
+  ok   heap after null block write
+- initm argument validation
+  ok   initm(x,x) is refused
+  ok   initm(x,x) writes no header
+  ok   initm(end<start) is refused
+  ok   initm of a header sized pool is refused
+  ok   initm of a 64 byte pool is accepted
+  ok   the 64 byte pool has the right size
+  ok   heap after initm validation
+- malloc basics
+  ok   malloc(10) returns a pointer
+  ok   malloc(10) block is sane and in range
+  ok   malloc(10) block is exactly 10+hdr
+  ok   malloc(10) block is marked used
+  ok   first allocation sits right after its header
+  ok   heap after malloc(10)
+- allocations do not overlap
+  ok   all 8 allocations are sane
+  ok   no two allocations overlap
+  ok   heap after 8 allocations
+- written data survives other allocations
+  ok   patterns readable right after writing
+  ok   survivors intact after free+realloc churn
+  ok   heap after churn
+- calloc
+  ok   calloc(10,10) returns a pointer
+  ok   calloc(10,10) block holds 100 bytes
+  ok   calloc memory is zeroed
+  ok   heap after calloc
+- calloc element*size overflow
+  ok   calloc(256,256) rejects the 64K request
+  ok   calloc(65535,65535) rejects the 4G request
+  ok   calloc(40000,60000) rejects the 2.4G request
+  ok   calloc(2,32764) lands on the malloc limit -> NULL
+  ok   calloc(1,65528) lands on the malloc limit -> NULL
+  ok   calloc(200,300) too big for arena -> NULL
+  ok   heap after failed calloc
+  ok   calloc(20,10) is still allowed through
+  ok   heap after accepted calloc
+- free(NULL)
+  ok   free(NULL) leaves the pool alone
+  ok   heap after free(NULL)
+- free then reallocate
+  ok   same size request reuses the freed block
+  ok   one free block remains (the tail)
+  ok   heap after reuse
+- coalescing / leak check
+  ok   forward free rebuilds one whole block
+  ok   forward free leaves a single block
+  ok   the single block is free
+  ok   heap after forward free
+  ok   reverse free rebuilds one whole block
+  ok   reverse free leaves a single block
+  ok   heap after reverse free
+- coalescing adjacent holes only
+  ok   b+c merge into one hole, tail is the other
+  ok   no adjacent free pair left over
+  ok   merged hole is handed back as one block
+  ok   heap after middle coalesce
+  ok   everything freed returns the whole pool
+- best fit selection
+  ok   20 byte request picks the 20 byte hole
+  ok   30 byte request picks the 30 byte hole
+  ok   heap after best fit
+- exact fit of the whole pool
+  ok   malloc(pool-hdr) succeeds
+  ok   the maximum allocation is sane
+  ok   it consumes the pool exactly
+  ok   no leftover split block
+  ok   heap after max allocation
+  ok   pool is full, malloc(1) -> NULL
+  ok   freeing it returns the whole pool
+  ok   heap after after free
+- one byte too many
+  ok   malloc(pool-hdr+1) -> NULL
+  ok   failed malloc did not touch the pool
+  ok   pool still free after failed malloc
+  ok   heap after failed malloc
+  ok   pool still usable after a failed malloc
+- malloc(0)
+  ok   heap after malloc(0)
+  ok   malloc(0) block carries no usable bytes
+  ok   malloc(0) does not alias the next allocation
+  ok   the next allocation is still sane
+- malloc size+header overflow
+  ok   malloc(60000) in a 1K arena -> NULL
+  ok   heap after oversized malloc
+  ok   malloc(65529) wraps to 0 bytes -> must be NULL
+  ok   malloc(65535) wraps to 6 bytes -> must be NULL
+- realloc(NULL)
+  ok   realloc(NULL,10) -> NULL
+  ok   heap after realloc(NULL)
+- realloc to the same size
+  ok   same size realloc returns the same pointer
+  ok   contents unchanged
+  ok   heap after realloc same
+- realloc grow
+  ok   grow returns a pointer
+  ok   grown block holds 40 bytes
+  ok   the original 10 bytes were copied over
+  ok   the neighbour was not disturbed
+  ok   the old block was released
+  ok   heap after realloc grow
+- realloc shrink
+  ok   shrink keeps the same pointer
+  ok   block was actually shrunk
+  ok   the kept bytes survived
+  ok   heap after realloc shrink
+  ok   shrink coalesces the tail it gave back
+- realloc failure keeps the old block
+  ok   impossible grow -> NULL
+  ok   the old block is still allocated
+  ok   the old contents are still there
+  ok   heap after failed realloc
+- realloc size+header overflow
+  ok   realloc(p,65535) wraps -> must be NULL
+  ok   realloc to 60000 in a 1K arena -> NULL
+  ok   old block kept after the failed realloc
+  ok   heap after failed realloc
+- realloc to zero frees
+  ok   realloc(p,0) returns NULL
+  ok   realloc(p,0) released the block
+  ok   the pool is whole again
+  ok   exactly one free block left
+  ok   realloc(NULL,0) -> NULL
+  ok   heap after realloc zero
+- second free of the same pointer is ignored
+  ok   the second free changes nothing
+  ok   the hole keeps its size
+  ok   the neighbour before it is still allocated
+  ok   the neighbour after it is still allocated
+  ok   heap after double free
+- prev back links
+  ok   back links intact after plain allocation
+  ok   back links intact after splitting a middle hole
+  ok   heap after prev links
+- repeated alloc/free cycles do not leak
+  ok   pool fully recovered after 10 cycles
+  ok   exactly one free block left
+  ok   heap after leak cycle
+- randomised stress with content verification
+  ok   1000 random operations kept the heap sound
+       (worst unmerged free pairs seen: 0)
+  ok   pool fully recovered after the stress run
+  ok   heap after stress
+
+passed: 139  failed: 0
+ALL TESTS PASSED

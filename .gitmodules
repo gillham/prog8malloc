@@ -1,0 +1,3 @@
+[submodule ".prog8targets"]
+	path = .prog8targets
+	url = https://github.com/gillham/prog8targets.git

@@ -25,20 +25,20 @@ tests {
     const ubyte GUARD_BYTE = $7E
 
     ; the whole slab, guard bands included
-    uword raw
+    pointer raw
 
     ; private heap the tests run on, kept away from the real pool
-    uword arena
+    pointer arena
 
     ; saved state of the caller's pool so we can hand it back untouched
-    uword saved_pool
+    pointer saved_pool
     uword saved_size
 
     ubyte passed
     ubyte failed
 
     ; scratch used by several tests
-    uword[16] tp
+    pointer[16] tp
     uword[16] tz
     uword[8] wsizes = [5, 17, 3, 64, 1, 33, 12, 40]
 
@@ -57,7 +57,7 @@ tests {
         txt.print("libmem test suite")
         txt.nl()
         txt.print("arena=")
-        txt.print_uwhex(arena, true)
+        txt.print_uwhex(arena as uword, true)
         txt.print(" size=")
         txt.print_uw(ARENA_SIZE)
         txt.print(" hdr=")
@@ -156,6 +156,26 @@ tests {
         }
     }
 
+    ; the same for two addresses
+    sub ok_ptr(pointer actual, pointer expect, str name) {
+        if actual == expect {
+            passed++
+            txt.print("  ok   ")
+            txt.print(name)
+            txt.nl()
+        } else {
+            failed++
+            txt.print("  FAIL ")
+            txt.print(name)
+            txt.print(" (want ")
+            txt.print_uwhex(expect as uword, true)
+            txt.print(", got ")
+            txt.print_uwhex(actual as uword, true)
+            txt.print(")")
+            txt.nl()
+        }
+    }
+
     ; structural integrity of the block list
     sub ok_heap(str name) {
         ubyte code = heap_check()
@@ -220,12 +240,12 @@ tests {
     ; ------------------------------------------------------------------
 
     ; size field of the header belonging to a user pointer
-    sub hdr_size(uword ptr) -> uword {
+    sub hdr_size(pointer ptr) -> uword {
         ^^libmem.Mblock b = ptr - HDR
         return b.size
     }
 
-    sub hdr_free(uword ptr) -> bool {
+    sub hdr_free(pointer ptr) -> bool {
         ^^libmem.Mblock b = ptr - HDR
         return b.free
     }
@@ -237,7 +257,7 @@ tests {
     sub heap_check() -> ubyte {
         ^^libmem.Mblock p
         ^^libmem.Mblock nxt
-        uword addr
+        pointer addr
         uword total
         uword guard
         ubyte i
@@ -269,7 +289,7 @@ tests {
             if p.size < HDR return 3
             if p.size > libmem.mempool_size return 3
             total += p.size
-            addr = (p as uword) + p.size
+            addr = (p as pointer) + p.size
             if addr > libmem.mempool + libmem.mempool_size return 4
             ; back links have to agree with forward links, in both
             ; directions, at every step
@@ -371,7 +391,7 @@ tests {
     ; too large still looks perfectly healthy to heap_check(), because
     ; the list stays contiguous and still sums to the pool size.  the
     ; only symptom is that the pool runs out far too early.
-    sub alloc_sane(uword ptr, uword size) -> bool {
+    sub alloc_sane(pointer ptr, uword size) -> bool {
         if ptr == libmem.NULL return false
         if ptr < libmem.mempool + HDR return false
         if ptr + size > libmem.mempool + libmem.mempool_size return false
@@ -383,13 +403,13 @@ tests {
         return true
     }
 
-    sub fill(uword ptr, uword size, ubyte pat) {
+    sub fill(pointer ptr, uword size, ubyte pat) {
         if ptr == libmem.NULL return
         if size == 0 return
         sys.memset(ptr, size, pat)
     }
 
-    sub verify(uword ptr, uword size, ubyte pat) -> bool {
+    sub verify(pointer ptr, uword size, ubyte pat) -> bool {
         uword i
         if ptr == libmem.NULL return false
         if size == 0 return true
@@ -399,7 +419,7 @@ tests {
         return true
     }
 
-    sub all_zero(uword ptr, uword size) -> bool {
+    sub all_zero(pointer ptr, uword size) -> bool {
         return verify(ptr, size, 0)
     }
 
@@ -412,13 +432,13 @@ tests {
         header("pool init")
         use_arena(ARENA_SIZE)
 
-        ok_uw(libmem.mempool, arena, "mempool is the arena start")
+        ok_ptr(libmem.mempool, arena, "mempool is the arena start")
         ok_uw(libmem.mempool_size, ARENA_SIZE, "mempool_size is end-start")
-        ok_uw(libmem.g_mempool, arena, "list head is the arena start")
+        ok_ptr(libmem.g_mempool, arena, "list head is the arena start")
         ok(libmem.g_mempool.free, "initial block is free")
         ok_uw(libmem.g_mempool.size, ARENA_SIZE, "initial block spans the pool")
-        ok_uw(libmem.g_mempool.next, libmem.NULL, "initial block has no next")
-        ok_uw(libmem.g_mempool.prev, libmem.NULL, "initial block has no prev")
+        ok_ptr(libmem.g_mempool.next, libmem.NULL, "initial block has no next")
+        ok_ptr(libmem.g_mempool.prev, libmem.NULL, "initial block has no prev")
         ok_heap("init")
     }
 
@@ -426,7 +446,7 @@ tests {
     ; know the address or the size, only that whatever it picked has to
     ; be a working heap.
     sub t_platform_init() {
-        uword p
+        pointer p
 
         header("platform pool via init()")
         libmem.started = false
@@ -435,7 +455,7 @@ tests {
         ok(libmem.started, "init() marks the pool started")
         ok(libmem.mempool != libmem.NULL, "init() picked a pool address")
         ok(libmem.mempool_size >= 64, "init() pool is big enough to be useful")
-        ok_uw(libmem.g_mempool, libmem.mempool, "list head is the pool start")
+        ok_ptr(libmem.g_mempool, libmem.mempool, "list head is the pool start")
         ok_uw(libmem.g_mempool.size, libmem.mempool_size, "initial block spans the pool")
         ok(libmem.g_mempool.free, "initial block is free")
 
@@ -455,8 +475,9 @@ tests {
     ; this is the one failure the arena fences cannot see, because the
     ; damage lands in low memory rather than anywhere near the pool.
     sub t_null_block_write() {
-        uword p
-        uword newtail
+        pointer p
+        pointer newtail
+        ^^libmem.Mblock nullblock = libmem.NULL
 
         header("no writes through a NULL block pointer")
         use_arena(ARENA_SIZE)
@@ -464,13 +485,13 @@ tests {
         ; the pool is a single block, so this split has next == NULL
         p = libmem.malloc(10)
         newtail = arena + HDR + 10
-        ok(peekw($0003) != newtail, "tail split did not write to NULL.prev")
+        ok(nullblock.prev != newtail, "tail split did not write to NULL.prev")
         ok_uw(hdr_size(p), 10 + HDR, "tail split produced the exact size")
 
         ; and again further in, where the tail block is not the head
         p = libmem.malloc(20)
         newtail = arena + 2 * HDR + 30
-        ok(peekw($0003) != newtail, "second tail split did not write to NULL.prev")
+        ok(nullblock.prev != newtail, "second tail split did not write to NULL.prev")
         ok_uw(hdr_size(p), 20 + HDR, "second tail split produced the exact size")
         ok_heap("null block write")
     }
@@ -513,7 +534,7 @@ tests {
     }
 
     sub t_malloc_basic() {
-        uword p
+        pointer p
 
         header("malloc basics")
         use_arena(ARENA_SIZE)
@@ -523,7 +544,7 @@ tests {
         ok(alloc_sane(p, 10), "malloc(10) block is sane and in range")
         ok_uw(hdr_size(p), 10 + HDR, "malloc(10) block is exactly 10+hdr")
         ok(not hdr_free(p), "malloc(10) block is marked used")
-        ok_uw(p, arena + HDR, "first allocation sits right after its header")
+        ok_ptr(p, arena + HDR, "first allocation sits right after its header")
         ok_heap("malloc(10)")
     }
 
@@ -609,8 +630,8 @@ tests {
     }
 
     sub t_calloc_zero() {
-        uword p
-        uword q
+        pointer p
+        pointer q
         uword i
         bool allzero
 
@@ -636,7 +657,7 @@ tests {
     }
 
     sub t_calloc_overflow() {
-        uword p
+        pointer p
 
         header("calloc element*size overflow")
         use_arena(ARENA_SIZE)
@@ -645,7 +666,7 @@ tests {
         ; it cannot possibly be satisfied, so it must fail.
         p = libmem.calloc(256, 256)
         use_arena(ARENA_SIZE)
-        ok_uw(p, libmem.NULL, "calloc(256,256) rejects the 64K request")
+        ok_ptr(p, libmem.NULL, "calloc(256,256) rejects the 64K request")
 
         ; 65535*65535 is the case a 32 bit product cannot catch: it
         ; overflows a signed long as well, so a guard written that way
@@ -653,26 +674,26 @@ tests {
         ; multiply then wraps all the way down to 1.
         p = libmem.calloc(65535, 65535)
         use_arena(ARENA_SIZE)
-        ok_uw(p, libmem.NULL, "calloc(65535,65535) rejects the 4G request")
+        ok_ptr(p, libmem.NULL, "calloc(65535,65535) rejects the 4G request")
 
         ; 40000*60000 likewise overflows 32 bits
         p = libmem.calloc(40000, 60000)
         use_arena(ARENA_SIZE)
-        ok_uw(p, libmem.NULL, "calloc(40000,60000) rejects the 2.4G request")
+        ok_ptr(p, libmem.NULL, "calloc(40000,60000) rejects the 2.4G request")
 
         ; right on the boundary: 2*32764 == 65528 == the largest value
         ; malloc itself refuses, so this has to come back NULL too
         p = libmem.calloc(2, 32764)
         use_arena(ARENA_SIZE)
-        ok_uw(p, libmem.NULL, "calloc(2,32764) lands on the malloc limit -> NULL")
+        ok_ptr(p, libmem.NULL, "calloc(2,32764) lands on the malloc limit -> NULL")
 
         p = libmem.calloc(1, 65528)
         use_arena(ARENA_SIZE)
-        ok_uw(p, libmem.NULL, "calloc(1,65528) lands on the malloc limit -> NULL")
+        ok_ptr(p, libmem.NULL, "calloc(1,65528) lands on the malloc limit -> NULL")
 
         ; 200*300 == 60000, no wrap, simply too big for the arena
         p = libmem.calloc(200, 300)
-        ok_uw(p, libmem.NULL, "calloc(200,300) too big for arena -> NULL")
+        ok_ptr(p, libmem.NULL, "calloc(200,300) too big for arena -> NULL")
         ok_heap("failed calloc")
 
         ; a request the guard must *not* reject
@@ -695,8 +716,8 @@ tests {
     }
 
     sub t_free_reuse() {
-        uword p
-        uword q
+        pointer p
+        pointer q
 
         header("free then reallocate")
         use_arena(ARENA_SIZE)
@@ -704,7 +725,7 @@ tests {
         p = libmem.malloc(50)
         libmem.free(p)
         q = libmem.malloc(50)
-        ok_uw(q, p, "same size request reuses the freed block")
+        ok_ptr(q, p, "same size request reuses the freed block")
         ok_uw(free_blocks(), 1, "one free block remains (the tail)")
         ok_heap("reuse")
     }
@@ -721,7 +742,7 @@ tests {
             libmem.free(tp[i])
 
         ok_uw(libmem.g_mempool.size, ARENA_SIZE, "forward free rebuilds one whole block")
-        ok_uw(libmem.g_mempool.next, libmem.NULL, "forward free leaves a single block")
+        ok_ptr(libmem.g_mempool.next, libmem.NULL, "forward free leaves a single block")
         ok(libmem.g_mempool.free, "the single block is free")
         ok_heap("forward free")
 
@@ -732,16 +753,16 @@ tests {
             libmem.free(tp[i])
 
         ok_uw(libmem.g_mempool.size, ARENA_SIZE, "reverse free rebuilds one whole block")
-        ok_uw(libmem.g_mempool.next, libmem.NULL, "reverse free leaves a single block")
+        ok_ptr(libmem.g_mempool.next, libmem.NULL, "reverse free leaves a single block")
         ok_heap("reverse free")
     }
 
     sub t_coalesce_middle() {
-        uword a
-        uword b
-        uword c
-        uword d
-        uword p
+        pointer a
+        pointer b
+        pointer c
+        pointer d
+        pointer p
 
         header("coalescing adjacent holes only")
         use_arena(ARENA_SIZE)
@@ -759,7 +780,7 @@ tests {
 
         ; the merged hole is 2*107 bytes, so a 207 byte request fits it
         p = libmem.malloc(207)
-        ok_uw(p, b, "merged hole is handed back as one block")
+        ok_ptr(p, b, "merged hole is handed back as one block")
         ok_heap("middle coalesce")
 
         libmem.free(a)
@@ -769,12 +790,12 @@ tests {
     }
 
     sub t_best_fit() {
-        uword a
-        uword b
-        uword c
-        uword d
-        uword e
-        uword p
+        pointer a
+        pointer b
+        pointer c
+        pointer d
+        pointer e
+        pointer p
 
         header("best fit selection")
         use_arena(ARENA_SIZE)
@@ -791,16 +812,16 @@ tests {
         ; a 20 byte request fits both holes and the big tail;
         ; best fit has to pick the 20 byte one
         p = libmem.malloc(20)
-        ok_uw(p, b, "20 byte request picks the 20 byte hole")
+        ok_ptr(p, b, "20 byte request picks the 20 byte hole")
 
         p = libmem.malloc(30)
-        ok_uw(p, d, "30 byte request picks the 30 byte hole")
+        ok_ptr(p, d, "30 byte request picks the 30 byte hole")
         ok_heap("best fit")
     }
 
     sub t_exhaust_exact() {
-        uword p
-        uword q
+        pointer p
+        pointer q
 
         header("exact fit of the whole pool")
         use_arena(64)
@@ -810,11 +831,11 @@ tests {
         ok(p != libmem.NULL, "malloc(pool-hdr) succeeds")
         ok(alloc_sane(p, 64 - HDR), "the maximum allocation is sane")
         ok_uw(hdr_size(p), 64, "it consumes the pool exactly")
-        ok_uw(libmem.g_mempool.next, libmem.NULL, "no leftover split block")
+        ok_ptr(libmem.g_mempool.next, libmem.NULL, "no leftover split block")
         ok_heap("max allocation")
 
         q = libmem.malloc(1)
-        ok_uw(q, libmem.NULL, "pool is full, malloc(1) -> NULL")
+        ok_ptr(q, libmem.NULL, "pool is full, malloc(1) -> NULL")
 
         libmem.free(p)
         ok_uw(largest_free(), 64, "freeing it returns the whole pool")
@@ -822,14 +843,14 @@ tests {
     }
 
     sub t_exhaust_offbyone() {
-        uword p
+        pointer p
 
         header("one byte too many")
         use_arena(64)
 
         ; needs 65 bytes of pool, only 64 exist
         p = libmem.malloc(64 - HDR + 1)
-        ok_uw(p, libmem.NULL, "malloc(pool-hdr+1) -> NULL")
+        ok_ptr(p, libmem.NULL, "malloc(pool-hdr+1) -> NULL")
         ok_uw(libmem.g_mempool.size, 64, "failed malloc did not touch the pool")
         ok(libmem.g_mempool.free, "pool still free after failed malloc")
         ok_heap("failed malloc")
@@ -840,8 +861,8 @@ tests {
     }
 
     sub t_malloc_zero() {
-        uword p
-        uword q
+        pointer p
+        pointer q
 
         header("malloc(0)")
         use_arena(ARENA_SIZE)
@@ -861,14 +882,14 @@ tests {
     }
 
     sub t_malloc_overflow() {
-        uword p
+        pointer p
 
         header("malloc size+header overflow")
         use_arena(ARENA_SIZE)
 
         ; no wrap, just far too big
         p = libmem.malloc(60000)
-        ok_uw(p, libmem.NULL, "malloc(60000) in a 1K arena -> NULL")
+        ok_ptr(p, libmem.NULL, "malloc(60000) in a 1K arena -> NULL")
         ok_heap("oversized malloc")
 
         ; 65529+7 wraps to 0, so the size check inside malloc sees a
@@ -876,25 +897,25 @@ tests {
         ; a pointer the block list is damaged.
         p = libmem.malloc(65529)
         use_arena(ARENA_SIZE)
-        ok_uw(p, libmem.NULL, "malloc(65529) wraps to 0 bytes -> must be NULL")
+        ok_ptr(p, libmem.NULL, "malloc(65529) wraps to 0 bytes -> must be NULL")
 
         ; 65535+7 wraps to 6
         p = libmem.malloc(65535)
         use_arena(ARENA_SIZE)
-        ok_uw(p, libmem.NULL, "malloc(65535) wraps to 6 bytes -> must be NULL")
+        ok_ptr(p, libmem.NULL, "malloc(65535) wraps to 6 bytes -> must be NULL")
     }
 
     sub t_realloc_null() {
         header("realloc(NULL)")
         use_arena(ARENA_SIZE)
 
-        ok_uw(libmem.realloc(libmem.NULL, 10), libmem.NULL, "realloc(NULL,10) -> NULL")
+        ok_ptr(libmem.realloc(libmem.NULL, 10), libmem.NULL, "realloc(NULL,10) -> NULL")
         ok_heap("realloc(NULL)")
     }
 
     sub t_realloc_same() {
-        uword p
-        uword q
+        pointer p
+        pointer q
 
         header("realloc to the same size")
         use_arena(ARENA_SIZE)
@@ -902,15 +923,15 @@ tests {
         p = libmem.malloc(10)
         fill(p, 10, $5A)
         q = libmem.realloc(p, 10)
-        ok_uw(q, p, "same size realloc returns the same pointer")
+        ok_ptr(q, p, "same size realloc returns the same pointer")
         ok(verify(q, 10, $5A), "contents unchanged")
         ok_heap("realloc same")
     }
 
     sub t_realloc_grow() {
-        uword p
-        uword blocker
-        uword q
+        pointer p
+        pointer blocker
+        pointer q
 
         header("realloc grow")
         use_arena(ARENA_SIZE)
@@ -930,8 +951,8 @@ tests {
     }
 
     sub t_realloc_shrink() {
-        uword p
-        uword q
+        pointer p
+        pointer q
 
         header("realloc shrink")
         use_arena(ARENA_SIZE)
@@ -940,7 +961,7 @@ tests {
         fill(p, 100, $3C)
         q = libmem.realloc(p, 20)
 
-        ok_uw(q, p, "shrink keeps the same pointer")
+        ok_ptr(q, p, "shrink keeps the same pointer")
         ok_uw(hdr_size(q), 20 + HDR, "block was actually shrunk")
         ok(verify(q, 20, $3C), "the kept bytes survived")
         ok_heap("realloc shrink")
@@ -948,8 +969,8 @@ tests {
     }
 
     sub t_realloc_fail_keeps_old() {
-        uword p
-        uword q
+        pointer p
+        pointer q
 
         header("realloc failure keeps the old block")
         use_arena(128)
@@ -958,15 +979,15 @@ tests {
         fill(p, 50, $77)
 
         q = libmem.realloc(p, 200)         ; cannot fit in a 128 byte pool
-        ok_uw(q, libmem.NULL, "impossible grow -> NULL")
+        ok_ptr(q, libmem.NULL, "impossible grow -> NULL")
         ok(not hdr_free(p), "the old block is still allocated")
         ok(verify(p, 50, $77), "the old contents are still there")
         ok_heap("failed realloc")
     }
 
     sub t_realloc_overflow() {
-        uword p
-        uword q
+        pointer p
+        pointer q
 
         header("realloc size+header overflow")
         use_arena(ARENA_SIZE)
@@ -977,27 +998,27 @@ tests {
         ; realloc. reset the arena before asserting.
         q = libmem.realloc(p, 65535)
         use_arena(ARENA_SIZE)
-        ok_uw(q, libmem.NULL, "realloc(p,65535) wraps -> must be NULL")
+        ok_ptr(q, libmem.NULL, "realloc(p,65535) wraps -> must be NULL")
 
         p = libmem.malloc(10)
         q = libmem.realloc(p, 60000)
-        ok_uw(q, libmem.NULL, "realloc to 60000 in a 1K arena -> NULL")
+        ok_ptr(q, libmem.NULL, "realloc to 60000 in a 1K arena -> NULL")
         ok(not hdr_free(p), "old block kept after the failed realloc")
         ok_heap("failed realloc")
     }
 
     sub t_realloc_zero() {
-        uword p
+        pointer p
 
         header("realloc to zero frees")
         use_arena(ARENA_SIZE)
 
         p = libmem.malloc(40)
-        ok_uw(libmem.realloc(p, 0), libmem.NULL, "realloc(p,0) returns NULL")
+        ok_ptr(libmem.realloc(p, 0), libmem.NULL, "realloc(p,0) returns NULL")
         ok(hdr_free(p), "realloc(p,0) released the block")
         ok_uw(libmem.g_mempool.size, ARENA_SIZE, "the pool is whole again")
         ok_uw(free_blocks(), 1, "exactly one free block left")
-        ok_uw(libmem.realloc(libmem.NULL, 0), libmem.NULL, "realloc(NULL,0) -> NULL")
+        ok_ptr(libmem.realloc(libmem.NULL, 0), libmem.NULL, "realloc(NULL,0) -> NULL")
         ok_heap("realloc zero")
     }
 
@@ -1007,9 +1028,9 @@ tests {
     ; undefined behaviour by design -- there is no free list to check
     ; it against -- so it is deliberately not tested here.
     sub t_double_free() {
-        uword a
-        uword b
-        uword c
+        pointer a
+        pointer b
+        pointer c
         ubyte before
 
         header("second free of the same pointer is ignored")
@@ -1031,9 +1052,9 @@ tests {
     }
 
     sub t_prev_links() {
-        uword a
-        uword b
-        uword c
+        pointer a
+        pointer b
+        pointer c
 
         header("prev back links")
         use_arena(ARENA_SIZE)
@@ -1080,7 +1101,7 @@ tests {
         ubyte slot
         uword iter
         ubyte op
-        uword newp
+        pointer newp
         uword sz
         ubyte code
         uword fail_iter

@@ -19,6 +19,14 @@ if you have your Prog8 environment setup with VICE and x16emu.
 One test does a number of random operations which can take 30+ seconds to complete.
 Warp mode in VICE is helpful.  The X16's 8MHz clock rate helps a lot as well.
 
+## Prog8 version
+
+libmem needs Prog8 v14 or later.  Addresses are of the `pointer` type, which
+is 16 bits on the 6502 targets and 32 bits on the `virtual` target.  Sizes are
+`uword` everywhere, so one allocation, and the pool, is limited to 64KB.
+
+For Prog8 v12 use the `v1.0` tag, where addresses are `uword`.
+
 ## Usage
 
 The library has to be imported to make it available to your Prog8 routines.
@@ -50,14 +58,16 @@ libmem.init()
 libmem.initm($8000, $9f00)
 ```
 
+`sub initm(pointer start, pointer end)`
+
 Once libmem has been initialized you can use the standard functions.
 
 ### calloc
 Alphabetically we start with `calloc` which takes the parameters shown below
-and returns a uword pointer or `libmem.NULL` (defined as $0000 right now). It also uses
+and returns a `pointer` or `libmem.NULL` (defined as 0). It also uses
 `sys.memset` to clear the allocation to zeroes.
 
-`sub calloc(uword elements, uword size) -> uword`
+`sub calloc(uword elements, uword size) -> pointer`
 
 The elements parameter is a quantity of the size parameter units.  These two numbers
 are multiplied together to get the amount of requested memory.  If the allocation
@@ -65,7 +75,7 @@ failures it will return `libmem.NULL`.
 
 An example of allocating 20 elements of 100 bytes each would look like:
 ```
-uword ptr = libmem.calloc(20, 100)
+pointer ptr = libmem.calloc(20, 100)
 ```
 
 ### free
@@ -74,13 +84,15 @@ to combine adjacent free blocks into a larger block.  The routine checks for NUL
 pointers and doesn't attempt to free them.  You *MUST NOT* attempt to free the
 same pointer twice.
 
+`sub free(pointer ptr)`
+
 Free takes a pointer argument and returns nothing.  The pointer is no longer valid
 after calling free with it.  Best practice is to set a freed pointer to `libmem.NULL`
 immediately after freeing it to avoid attempting a double free.
 
 Example:
 ```
-uword ptr = libmem.calloc(20, 100)
+pointer ptr = libmem.calloc(20, 100)
 ...
 libmem.free(ptr)
 ptr = libmem.NULL
@@ -95,11 +107,11 @@ will look through the mempool for a free block that is greater than or equal to 
 requested size. A larger block will be resized to the requested size and returned.
 
 The malloc routine takes a uword size argument.
-`sub malloc(uword size) -> uword`
+`sub malloc(uword size) -> pointer`
 
 Example usage:
 ```
-uword ptr = libmem.malloc(4096)
+pointer ptr = libmem.malloc(4096)
 ```
 
 ### realloc
@@ -115,12 +127,12 @@ block / pointer will be freed.
 If there is not enough ram available then `realloc` will return `libmem.NULL` to the caller.
 NOTE: *the original pointer will still be valid if realloc() returns NULL*
 
-`sub realloc(uword ptr, uword size) -> uword`
+`sub realloc(pointer ptr, uword size) -> pointer`
 
 Here is a usage example:
 ```
-uword ptr = libmem.malloc(100)
-uword temp = libmem.realloc(ptr, 1000)
+pointer ptr = libmem.malloc(100)
+pointer temp = libmem.realloc(ptr, 1000)
 if temp != libmem.NULL
     ptr = temp
 ```

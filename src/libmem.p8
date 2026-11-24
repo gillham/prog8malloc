@@ -9,8 +9,8 @@ libmem {
     %option no_symbol_prefixing, ignore_unused
 
     const ubyte MIN_RESIZE = sizeof(Mblock) + 1
-    const uword NULL = $0000
-    uword mempool
+    const pointer NULL = 0
+    pointer mempool
     uword mempool_size
     bool started
 
@@ -40,13 +40,13 @@ libmem {
     ; manual init by specifying the memory block directly.
     ; end should be the byte *after* the last expected byte
     ; so $9f00 or $d000 instead of $9eff or $cfff respectively.
-    sub initm(uword start, uword end) {
+    sub initm(pointer start, pointer end) {
         if started return
         ; don't initialize if no space between start/end.
         ; should signal error?
         if end <= (start + MIN_RESIZE + 1) return
         mempool = start
-        mempool_size = end - mempool
+        mempool_size = (end - mempool) as uword
         started = true
         reinit()
     }
@@ -65,8 +65,8 @@ libmem {
 
     ; calloc returns a pointer to memory initialized
     ; to zero.
-    sub calloc(uword elements, uword size) -> uword {
-        uword ptr
+    sub calloc(uword elements, uword size) -> pointer {
+        pointer ptr
 
         ; we should really check against the actual pool size
         ; but make sure we don't wrap a uword
@@ -85,7 +85,7 @@ libmem {
     ; frees a block and then attempts to merge free blocks
     ; NOTE: do not call twice on the same pointer.  This will
     ; lead to undefined behavior and likely corruption.
-    sub free(uword ptr) {
+    sub free(pointer ptr) {
         ^^Mblock memb
 
         ; don't free $0000 pointers
@@ -110,7 +110,7 @@ libmem {
     ; returns a pointer to a free block of size
     ; or null if we don't have free ram
     ;
-    sub malloc(uword size) -> uword {
+    sub malloc(uword size) -> pointer {
         ^^Mblock memb
         ; we should really check against the actual pool size
         ; but make sure we don't wrap a uword
@@ -176,9 +176,9 @@ libmem {
     ; expanding copies data
     ; returns null if we don't have free ram
     ; in that case ptr is still valid
-    sub realloc(uword ptr, uword size) -> uword {
+    sub realloc(pointer ptr, uword size) -> pointer {
         ^^Mblock memb
-        uword new_ptr
+        pointer new_ptr
 
         ; "implementation specific" behavior but we will
         ; if size == 0, act like free() and return NULL
@@ -236,7 +236,7 @@ libmem {
         if (ptr.size - msize) >= MIN_RESIZE {
             curr_prev = ptr.prev
             curr_next = ptr.next
-            new_block = (ptr as uword) + msize
+            new_block = (ptr as pointer) + msize
             new_block.size = ptr.size - msize
             new_block.free = true
             new_block.prev = ptr
@@ -254,7 +254,7 @@ libmem {
         }
 }
 
-    sub scan_mem_pool(uword size) -> uword {
+    sub scan_mem_pool(uword size) -> ^^Mblock {
         ^^Mblock scanptr, candidate
         uword temp
 
@@ -290,6 +290,7 @@ libmem {
 
     ; dumps the mempool linked list
     ; useful for debugging
+    ; (addresses are shown as 16 bits: the low half where a pointer is 32 bits)
     sub dump() {
         ^^Mblock temp
 
@@ -298,15 +299,15 @@ libmem {
 
         while temp != NULL {
             txt.print("block: ")
-            txt.print_uwhex(temp, true)
+            txt.print_uwhex(temp as uword, true)
             txt.spc()
             txt.print_uwhex(temp.size, true)
             txt.spc()
             txt.print_bool(temp.free)
             txt.spc()
-            txt.print_uwhex(temp.prev, true)
+            txt.print_uwhex(temp.prev as uword, true)
             txt.spc()
-            txt.print_uwhex(temp.next, true)
+            txt.print_uwhex(temp.next as uword, true)
             txt.nl()
             temp = temp.next
         }

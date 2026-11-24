@@ -1,5 +1,5 @@
 libmem test suite
-arena=$1f1b size=1024 hdr=7 min_resize=8
+arena=$205c size=1024 hdr=11 min_resize=12
 
 - pool init
   ok   mempool is the arena start

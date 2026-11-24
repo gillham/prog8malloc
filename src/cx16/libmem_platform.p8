@@ -5,7 +5,7 @@ libmem {
 %option merge
     ; I/O starts at $9f00
     uword MEMPOOL_SIZE  = top() - sys.progend()
-    uword mempool_platform = sys.progend()
+    pointer mempool_platform = sys.progend()
 
     asmsub top() -> uword @XY {
         %asm {{

@@ -78,7 +78,7 @@ PCC=prog8c
 PCCARGSBASE=-asmlist -plaintext -out build
 PCCARGSDIRS=-srcdirs src:demo
 PCCARGSC64=-srcdirs src:src/c64:demo -plaintext -asmlist -target c64 -out build/
-PCCARGSGTC=$(PCCARGSBASE) $(PCCARGSDIRS):src$(SEP)gametank -varsgolden -slabsgolden -target config/gametank.properties
+PCCARGSGTC=$(PCCARGSBASE) $(PCCARGSDIRS):src$(SEP)gametank -varsgolden -target config/gametank.properties
 PCCARGSVM=-srcdirs src:src/virtual:demo -plaintext -asmlist -target virtual -out build/
 PCCARGSX16=-srcdirs src:src/cx16:demo -plaintext -asmlist -target cx16 -out build/
 
@@ -144,7 +144,8 @@ mcp-warp:	build/mainc64.prg
 	x64sc -mcpserver -warp -autostart-warp
 
 # this runs the test on the virtual machine only.
-# currently requires prog8c v12.x, not v14.x.
+# the expected output is that of prog8c v14: the address in its second
+# line is where that compiler puts the test arena.
 test:	all
 	$(PCC) -quiet $(PCCARGSVM) -emu $(SRCS) | diff -u tests/expected/virtual_main.txt -
 

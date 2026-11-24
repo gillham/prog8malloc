@@ -2,7 +2,7 @@
 name = "libmem"
 description = "C style malloc, calloc, realloc and free"
 license = "MIT"
-prog8 = "12"
+prog8 = "14"
 
 [targets]
 c64      = ["src/c64"]

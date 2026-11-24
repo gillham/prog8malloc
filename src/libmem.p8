@@ -1,11 +1,11 @@
 %import textio
-%import malloc_platform
+%import libmem_platform
 
 ;
 ; implements most of the typical C malloc style
 ; functions.
 ;
-mem {
+libmem {
     %option no_symbol_prefixing, ignore_unused
 
     const ubyte MIN_RESIZE = sizeof(Mblock) + 1

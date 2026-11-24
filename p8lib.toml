@@ -1,0 +1,11 @@
+[package]
+name = "libmem"
+description = "C style malloc, calloc, realloc and free"
+license = "MIT"
+prog8 = "12"
+
+[targets]
+c64      = ["src/c64"]
+cx16     = ["src/cx16"]
+gametank = ["src/gametank"]
+virtual  = ["src/virtual"]

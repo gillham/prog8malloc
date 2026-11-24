@@ -11,7 +11,7 @@ the size of the largest free block.  Feedback is welcome.
 
 ## Demo
 
-In `src/main.p8` and `src/tests.p8` is a demonstration program that executes a number
+In `demo/main.p8` and `demo/tests.p8` is a demonstration program that executes a number
 tests with validation of the results.  It is meant as a bit of a torture test
 of the routines.  You can run it on C64 or CX16 with `make emu-c64` or `make emu-cx16`
 if you have your Prog8 environment setup with VICE and x16emu.
@@ -22,9 +22,6 @@ Warp mode in VICE is helpful.  The X16's 8MHz clock rate helps a lot as well.
 ## Usage
 
 The library has to be imported to make it available to your Prog8 routines.
-Note the library file is called `libmem.p8` but the block is just `mem` right now.
-This may change so the filename and block match in the future once the Prog8
-community settles on a standard way to use 3rd party library modules.
 
 ```
 %import libmem
@@ -35,7 +32,7 @@ To use the library once it has been imported you must initialization it.
 Generally this should be done immediately in your `start` subroutine.
 
 There are currently two ways to initialize libmem right now.  The automatic
-way is to just call `mem.init()` which will use the available memory from the
+way is to just call `libmem.init()` which will use the available memory from the
 end of your Prog8 program (by calling `sys.progend()`) and the start of I/O
 space.  That would be $9f00 on CX16 and $d000 on C64. On C64, 32 bytes are subtracted
 for the CX16 style virtual registers.  So it is really $cfe0 not $d000.
@@ -49,26 +46,26 @@ when specifying the end address prior to the I/O  space you would use `$9f00` no
 Below are examples of the automatic and manual initialization.  You should **only
 use one** method:
 ```
-mem.init()
-mem.initm($8000, $9f00)
+libmem.init()
+libmem.initm($8000, $9f00)
 ```
 
 Once libmem has been initialized you can use the standard functions.
 
 ### calloc
 Alphabetically we start with `calloc` which takes the parameters shown below
-and returns a uword pointer or `mem.NULL` (defined as $0000 right now). It also uses
+and returns a uword pointer or `libmem.NULL` (defined as $0000 right now). It also uses
 `sys.memset` to clear the allocation to zeroes.
 
 `sub calloc(uword elements, uword size) -> uword`
 
 The elements parameter is a quantity of the size parameter units.  These two numbers
 are multiplied together to get the amount of requested memory.  If the allocation
-failures it will return `mem.NULL`.
+failures it will return `libmem.NULL`.
 
 An example of allocating 20 elements of 100 bytes each would look like:
 ```
-uword ptr = mem.calloc(20, 100)
+uword ptr = libmem.calloc(20, 100)
 ```
 
 ### free
@@ -78,22 +75,22 @@ pointers and doesn't attempt to free them.  You *MUST NOT* attempt to free the
 same pointer twice.
 
 Free takes a pointer argument and returns nothing.  The pointer is no longer valid
-after calling free with it.  Best practice is to set a freed pointer to `mem.NULL`
+after calling free with it.  Best practice is to set a freed pointer to `libmem.NULL`
 immediately after freeing it to avoid attempting a double free.
 
 Example:
 ```
-uword ptr = mem.calloc(20, 100)
+uword ptr = libmem.calloc(20, 100)
 ...
-mem.free(ptr)
-ptr = mem.NULL
+libmem.free(ptr)
+ptr = libmem.NULL
 ```
 
 ### malloc
 
 The most used routine in libmem is likely to be `malloc` which allocates a block
 of ram of a certain size, if available, and returns a pointer. If there isn't ram
-available to service the request then `mem.NULL` is returned. The `malloc` routine
+available to service the request then `libmem.NULL` is returned. The `malloc` routine
 will look through the mempool for a free block that is greater than or equal to the
 requested size. A larger block will be resized to the requested size and returned.
 
@@ -102,7 +99,7 @@ The malloc routine takes a uword size argument.
 
 Example usage:
 ```
-uword ptr = mem.malloc(4096)
+uword ptr = libmem.malloc(4096)
 ```
 
 ### realloc
@@ -115,16 +112,16 @@ If a block is found, it will be resized to the request size like with `malloc` a
 then the data from the current block will be copied to the new block and the current
 block / pointer will be freed.
 
-If there is not enough ram available then `realloc` will return `mem.NULL` to the caller.
+If there is not enough ram available then `realloc` will return `libmem.NULL` to the caller.
 NOTE: *the original pointer will still be valid if realloc() returns NULL*
 
 `sub realloc(uword ptr, uword size) -> uword`
 
 Here is a usage example:
 ```
-uword ptr = mem.malloc(100)
-uword temp = mem.realloc(ptr, 1000)
-if temp != mem.NULL
+uword ptr = libmem.malloc(100)
+uword temp = libmem.realloc(ptr, 1000)
+if temp != libmem.NULL
     ptr = temp
 ```
 

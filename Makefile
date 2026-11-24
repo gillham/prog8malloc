@@ -76,16 +76,16 @@ endif
 
 PCC=prog8c
 PCCARGSBASE=-asmlist -plaintext -out build
-PCCARGSDIRS=-srcdirs src
-PCCARGSC64=-srcdirs src:src/c64 -plaintext -asmlist -target c64 -out build/
+PCCARGSDIRS=-srcdirs src:demo
+PCCARGSC64=-srcdirs src:src/c64:demo -plaintext -asmlist -target c64 -out build/
 PCCARGSGTC=$(PCCARGSBASE) $(PCCARGSDIRS):src$(SEP)gametank -varsgolden -slabsgolden -target config/gametank.properties
-PCCARGSVM=-srcdirs src:src/virtual -plaintext -asmlist -target virtual -out build/
-PCCARGSX16=-srcdirs src:src/cx16 -plaintext -asmlist -target cx16 -out build/
+PCCARGSVM=-srcdirs src:src/virtual:demo -plaintext -asmlist -target virtual -out build/
+PCCARGSX16=-srcdirs src:src/cx16:demo -plaintext -asmlist -target cx16 -out build/
 
 PROGS	= build/main.p8ir
 #PROGS	= build/mainc64.prg
-SRCS	= src/main.p8
-XSRCS	= src/libmem.p8 src/tests.p8
+SRCS	= demo/main.p8
+XSRCS	= src/libmem.p8 demo/tests.p8
 
 .PHONY:	all check test clean run emu
 
@@ -105,12 +105,10 @@ build/maincx16.prg: $(SRCS) $(XSRCS)
 build/main.p8ir: $(SRCS) $(XSRCS)
 	$(PCC) $(PCCARGSVM) $<
 
-build/main.gtr: src/main_rom.p8 $(SRCS) $(XSRCS) src/gametank/malloc_platform.p8
+build/main.gtr: demo/main_rom.p8 $(SRCS) $(XSRCS) src/gametank/libmem_platform.p8
 	$(PCC) $(PCCARGSGTC) $<
 	truncate -s 2m $@
-	#dd if=build/main_rom.bin of=$@ bs=16K seek=127 conv=notrunc
-	dd if=build/main_rom.bin of=$@ bs=32K seek=0 conv=notrunc
-	dd if=build/main_rom.bin of=$@ bs=32K seek=63 conv=notrunc
+	dd if=build/main_rom.bin of=$@ bs=16K seek=127 conv=notrunc
 
 check:
 	$(PCC) -check -quiet $(PCCARGSVM) $(SRCS)
@@ -126,6 +124,9 @@ emu-c64:	$(SRCS) $(XSRCS)
 
 emu-cx16: $(SRCS) $(XSRCS)
 	$(PCC) $(PCCARGSX16) -emu $<
+
+emu-gametank: build/main.gtr
+	GameTankEmulator $<
 
 # the -mcpserver option requires the vice-mcp package:
 # 	https://github.com/barryw/vice-mcp

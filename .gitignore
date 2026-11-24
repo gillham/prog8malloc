@@ -1,3 +1,5 @@
+# IDE config directory
+.idea/
 # build artifacts
 build/
 # libdump output should be ignored anywhere we see it.

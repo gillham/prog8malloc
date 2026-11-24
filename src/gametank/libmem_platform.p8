@@ -1,7 +1,7 @@
 ;
 ; Define platform specific memory block
 ;
-mem {
+libmem {
 %option merge
     ; General purpose ram is $0600 to $1e00
     ; $1e00 is the start of the banked "highram" reservation.

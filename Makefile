@@ -9,6 +9,8 @@
 # running `prog8c` for example.
 #
 # The 64tass (or Tass64) assembler is needed by the compiler.
+# The source directories come from `p8lib srcdirs -own`, which reads
+# `p8lib.toml`, so `p8lib` is needed too: https://github.com/p8ug/p8lib
 # The C64 emulator requires VICE.
 #
 # The current custom targets configuration requires symlinks but
@@ -65,6 +67,7 @@ ifeq ($(OS),Windows_NT)
     MD = mkdir
     MV = cmd -c "move"
     SEP = \\
+    PSEP = ;
 else
     CLEAN = rm -fr build/*
     CP = cp -p
@@ -72,15 +75,22 @@ else
     MD = mkdir -p
     MV = mv
     SEP = /
+    PSEP = :
 endif
 
 PCC=prog8c
 PCCARGSBASE=-asmlist -plaintext -out build
-PCCARGSDIRS=-srcdirs src:demo
-PCCARGSC64=-srcdirs src:src/c64:demo -plaintext -asmlist -target c64 -out build/
-PCCARGSGTC=$(PCCARGSBASE) $(PCCARGSDIRS):src$(SEP)gametank -varsgolden -target config/gametank.properties
-PCCARGSVM=-srcdirs src:src/virtual:demo -plaintext -asmlist -target virtual -out build/
-PCCARGSX16=-srcdirs src:src/cx16:demo -plaintext -asmlist -target cx16 -out build/
+P8LIB=p8lib
+
+# $(call srcdirs,TARGET) is the -srcdirs option for a target: the library's
+# own directories, from p8lib.toml, and then demo/.  p8lib is only run by
+# the rules that compile, and a failure of it stops make.
+srcdirs = -srcdirs "$(or $(shell $(P8LIB) srcdirs -target $(1) -own),$(error p8lib srcdirs failed for target $(1)))$(PSEP)demo"
+
+PCCARGSC64=$(call srcdirs,c64) -plaintext -asmlist -target c64 -out build/
+PCCARGSGTC=$(PCCARGSBASE) $(call srcdirs,gametank) -varsgolden -target config/gametank.properties
+PCCARGSVM=$(call srcdirs,virtual) -plaintext -asmlist -target virtual -out build/
+PCCARGSX16=$(call srcdirs,cx16) -plaintext -asmlist -target cx16 -out build/
 
 PROGS	= build/main.p8ir
 #PROGS	= build/mainc64.prg
